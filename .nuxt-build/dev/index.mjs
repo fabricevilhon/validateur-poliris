@@ -2027,7 +2027,7 @@ const _YmejQoLRW7MM40lOWxC6r7g0g1htbSViCY66F_8ntwk = (function(nitro) {
 
 const rootDir = "C:/Users/fvilhon/Documents/Tech - divers/validateur poliris";
 
-const appHead = {"meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"name":"description","content":"Outil de validation de fichiers CSV au format Poliris pour les annonces immobilières"}],"link":[{"rel":"preconnect","href":"https://fonts.googleapis.com"},{"rel":"preconnect","href":"https://fonts.gstatic.com","crossorigin":""},{"rel":"stylesheet","href":"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"}],"style":[],"script":[],"noscript":[],"title":"Validateur Poliris"};
+const appHead = {"meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"},{"name":"description","content":"Outil de validation de fichiers CSV au format Poliris pour les annonces immobilières"}],"link":[{"rel":"icon","type":"image/png","href":"/favicon.png"},{"rel":"preconnect","href":"https://fonts.googleapis.com"},{"rel":"preconnect","href":"https://fonts.gstatic.com","crossorigin":""}],"style":[],"script":[],"noscript":[],"title":"Validateur Poliris"};
 
 const appRootTag = "div";
 

@@ -176,8 +176,8 @@ function checkLongueur(value: string, rule: FieldRule): string | null {
 function checkBooleen(value: string, rule: FieldRule): string | null {
     if (rule.type === 'Booléen' && value) {
         const normalized = value.toLowerCase().trim()
-        if (!['oui', 'non', '0', '1', 'true', 'false', 'o', 'n'].includes(normalized)) {
-            return `Valeur booléenne invalide : "${value}". Attendu : oui/non, 0/1, true/false.`
+        if (!['oui', 'non', '0', '1', 'true', 'false', 'o', 'n', 'yes', 'no'].includes(normalized)) {
+            return `Valeur booléenne invalide : "${value}". Attendu : oui/non, yes/no, 0/1, true/false.`
         }
     }
     return null
@@ -306,7 +306,7 @@ function validateRow(rowNum: number, rowData: string[], allFieldsData: string[][
 
         // Vérification obligatoire
         // Exception : NB de pièces (rang 18) non obligatoire pour certains types de bien
-        const TYPES_SANS_PIECES = ['terrain', 'inconnu', 'parking/box', 'boutique', 'local', 'loft/atelier/surface']
+        const TYPES_SANS_PIECES = ['terrain', 'inconnu', 'parking/box', 'boutique', 'local', 'loft/atelier/surface', 'ground', 'shop', 'loft/workshop/area']
         const skipObligatoire = rule.rang === 18 && TYPES_SANS_PIECES.includes(typeBien)
 
         if (!skipObligatoire) {

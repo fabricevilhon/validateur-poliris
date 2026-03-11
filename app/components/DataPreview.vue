@@ -1,6 +1,6 @@
 <template>
   <div class="fade-in">
-    <!-- Toolbar : Search + View Toggle -->
+    <!-- Toolbar : Search + Ref Filter + View Toggle -->
     <div class="filters-bar" id="data-preview-toolbar">
       <div class="search-wrapper">
         <span class="search-icon">🔍</span>
@@ -16,6 +16,23 @@
           class="search-clear"
           @click="searchQuery = ''"
           title="Effacer la recherche"
+        >✕</button>
+      </div>
+
+      <div class="search-wrapper ref-search-wrapper">
+        <span class="search-icon">🏷️</span>
+        <input
+          type="text"
+          class="filter-search search-field"
+          v-model="refQuery"
+          placeholder="Filtrer par référence agence…"
+          id="data-preview-ref-search"
+        />
+        <button
+          v-if="refQuery"
+          class="search-clear"
+          @click="refQuery = ''"
+          title="Effacer le filtre référence"
         >✕</button>
       </div>
 
@@ -47,10 +64,25 @@
       </span>
     </div>
 
+    <!-- Ref filter results indicator -->
+    <div v-if="refQuery" class="search-results-info ref-results-info" id="ref-results-info">
+      <span v-if="filteredRows.length > 0">
+        🏷️ <strong>{{ filteredRows.length }}</strong> annonce(s) trouvée(s) sur {{ dataRows.length }} pour réf. « <em>{{ refQuery }}</em> »
+      </span>
+      <span v-else class="no-results">
+        ❌ Aucune annonce ne correspond à la référence « <em>{{ refQuery }}</em> »
+      </span>
+    </div>
+
     <!-- Info bar -->
     <div class="filters-bar" style="margin-bottom: 8px;">
       <span style="font-size: 0.85rem; color: var(--text-muted);">
-        {{ dataRows.length }} annonce(s) — {{ columnHeaders.length }} colonnes
+        <template v-if="refQuery && filteredRows.length !== dataRows.length">
+          {{ filteredRows.length }} / {{ dataRows.length }} annonce(s) — {{ columnHeaders.length }} colonnes
+        </template>
+        <template v-else>
+          {{ dataRows.length }} annonce(s) — {{ columnHeaders.length }} colonnes
+        </template>
       </span>
       <label style="display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 0.85rem; color: var(--text-secondary); cursor: pointer;">
         <input type="checkbox" v-model="highlightErrors" />
@@ -71,18 +103,18 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(row, rowIdx) in paginatedRows" :key="rowIdx"
-                :class="{ 'row-error': highlightErrors && errorRowIndices.has(actualRowIndex(rowIdx)) }">
+            <tr v-for="(entry, rowIdx) in paginatedRows" :key="rowIdx"
+                :class="{ 'row-error': highlightErrors && errorRowIndices.has(entry.originalIndex) }">
               <td style="position: sticky; left: 0; z-index: 1; background: var(--bg-surface); font-weight: 600; color: var(--text-muted);">
-                {{ actualRowIndex(rowIdx) }}
+                {{ entry.originalIndex }}
               </td>
-              <td v-for="colIdx in displayColumnIndices" :key="colIdx" :title="row[colIdx]"
-                  :class="{ 'cell-space-warning': colIdx === 0 && hasLeadingTrailingSpaces(row[colIdx]) }">
-                <template v-if="colIdx === 0 && hasLeadingTrailingSpaces(row[colIdx])">
-                  <span class="space-indicator">⚠</span> {{ formatSpaces(row[colIdx], 50) }}
+              <td v-for="colIdx in displayColumnIndices" :key="colIdx" :title="entry.row[colIdx]"
+                  :class="{ 'cell-space-warning': colIdx === 0 && hasLeadingTrailingSpaces(entry.row[colIdx]) }">
+                <template v-if="colIdx === 0 && hasLeadingTrailingSpaces(entry.row[colIdx])">
+                  <span class="space-indicator">⚠</span> {{ formatSpaces(entry.row[colIdx], 50) }}
                 </template>
                 <template v-else>
-                  {{ truncate(row[colIdx], 50) }}
+                  {{ truncate(entry.row[colIdx], 50) }}
                 </template>
               </td>
             </tr>
@@ -107,15 +139,15 @@
         <button class="btn btn-sm btn-secondary" :disabled="cardIndex <= 0" @click="cardIndex = 0">⟪</button>
         <button class="btn btn-sm btn-secondary" :disabled="cardIndex <= 0" @click="cardIndex--">◀</button>
         <span class="annonce-nav-info">
-          Annonce <strong>{{ cardIndex + 1 }}</strong> / {{ dataRows.length }}
+          Annonce <strong>{{ cardIndex + 1 }}</strong> / {{ filteredRows.length }}
           <template v-if="currentRowRef"> — Réf. <strong>{{ currentRowRef }}</strong></template>
         </span>
-        <button class="btn btn-sm btn-secondary" :disabled="cardIndex >= dataRows.length - 1" @click="cardIndex++">▶</button>
-        <button class="btn btn-sm btn-secondary" :disabled="cardIndex >= dataRows.length - 1" @click="cardIndex = dataRows.length - 1">⟫</button>
+        <button class="btn btn-sm btn-secondary" :disabled="cardIndex >= filteredRows.length - 1" @click="cardIndex++">▶</button>
+        <button class="btn btn-sm btn-secondary" :disabled="cardIndex >= filteredRows.length - 1" @click="cardIndex = filteredRows.length - 1">⟫</button>
       </div>
 
       <!-- Fiche détail -->
-      <div class="card-view-container" id="card-detail-view" v-if="dataRows.length > 0">
+      <div class="card-view-container" id="card-detail-view" v-if="filteredRows.length > 0">
         <div class="field-list">
           <div
             v-for="colIdx in displayColumnIndices"
@@ -124,7 +156,7 @@
               'field-card',
               {
                 'field-empty': !currentRow[colIdx],
-                'field-error': highlightErrors && fieldHasError(cardIndex + 1, colIdx + 1)
+                'field-error': highlightErrors && fieldHasError(colIdx + 1)
               }
             ]"
           >
@@ -164,6 +196,7 @@ const ITEMS_PER_PAGE = 50
 const currentPage = ref(1)
 const highlightErrors = ref(false)
 const searchQuery = ref('')
+const refQuery = ref('')
 const viewMode = ref<'table' | 'card'>('table')
 const cardIndex = ref(0)
 
@@ -190,12 +223,23 @@ const displayColumnIndices = computed(() => {
   return props.columnHeaders.map((_, i) => i)
 })
 
+// --- Computed : filtrage par référence (colonne index 1 = rang 2) ---
+const filteredRows = computed(() => {
+  const entries = props.dataRows.map((row, i) => ({ row, originalIndex: i + 1 }))
+  if (!refQuery.value.trim()) return entries
+  const q = refQuery.value.toLowerCase().trim()
+  return entries.filter(e => {
+    const ref = e.row[1] || ''
+    return ref.toLowerCase().includes(q)
+  })
+})
+
 // --- Computed : tableau ---
-const totalPages = computed(() => Math.ceil(props.dataRows.length / ITEMS_PER_PAGE))
+const totalPages = computed(() => Math.ceil(filteredRows.value.length / ITEMS_PER_PAGE))
 
 const paginatedRows = computed(() => {
   const start = (currentPage.value - 1) * ITEMS_PER_PAGE
-  return props.dataRows.slice(start, start + ITEMS_PER_PAGE)
+  return filteredRows.value.slice(start, start + ITEMS_PER_PAGE)
 })
 
 const errorRowIndices = computed(() => {
@@ -208,7 +252,8 @@ const errorRowIndices = computed(() => {
 
 // --- Computed : fiche ---
 const currentRow = computed(() => {
-  return props.dataRows[cardIndex.value] || []
+  const entry = filteredRows.value[cardIndex.value]
+  return entry ? entry.row : []
 })
 
 const currentRowRef = computed(() => {
@@ -218,8 +263,9 @@ const currentRowRef = computed(() => {
 })
 
 const cardFieldErrors = computed(() => {
-  const ligne = cardIndex.value + 1
-  return props.errors.filter(e => e.ligne === ligne)
+  const entry = filteredRows.value[cardIndex.value]
+  if (!entry) return []
+  return props.errors.filter(e => e.ligne === entry.originalIndex)
 })
 
 // Index des erreurs par (ligne, rang) pour lookup rapide
@@ -234,12 +280,12 @@ const errorIndex = computed(() => {
 })
 
 // --- Méthodes ---
-function actualRowIndex(paginatedIdx: number): number {
-  return (currentPage.value - 1) * ITEMS_PER_PAGE + paginatedIdx + 1
-}
+// actualRowIndex n'est plus nécessaire car chaque entry porte son originalIndex
 
-function fieldHasError(ligne: number, rang: number): boolean {
-  return errorIndex.value.has(`${ligne}-${rang}`)
+function fieldHasError(rang: number): boolean {
+  const entry = filteredRows.value[cardIndex.value]
+  if (!entry) return false
+  return errorIndex.value.has(`${entry.originalIndex}-${rang}`)
 }
 
 function truncate(str: string, maxLen: number): string {
@@ -264,6 +310,12 @@ watch(searchQuery, () => {
   currentPage.value = 1
 })
 
+// Reset page et card quand le filtre référence change
+watch(refQuery, () => {
+  currentPage.value = 1
+  cardIndex.value = 0
+})
+
 // Reset card index si on change de vue ou si les données changent
 watch(() => props.dataRows, () => {
   cardIndex.value = 0
@@ -279,6 +331,15 @@ watch(() => props.dataRows, () => {
   align-items: center;
   flex: 1;
   min-width: 250px;
+}
+
+.ref-search-wrapper {
+  flex: 0 1 280px;
+  min-width: 180px;
+}
+
+.ref-results-info {
+  border-left-color: var(--color-info);
 }
 
 .search-icon {
@@ -539,6 +600,10 @@ watch(() => props.dataRows, () => {
 @media (max-width: 768px) {
   .search-wrapper {
     min-width: 100%;
+  }
+
+  .ref-search-wrapper {
+    flex: 1 1 100%;
   }
 
   .view-toggle {

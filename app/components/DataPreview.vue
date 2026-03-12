@@ -1,23 +1,17 @@
 <template>
   <div class="fade-in">
-    <!-- Toolbar : Search + Ref Filter + View Toggle -->
+    <!-- Toolbar : Column Select + Ref Filter + Counter + View Toggle -->
     <div class="filters-bar" id="data-preview-toolbar">
-      <div class="search-wrapper">
-        <span class="search-icon">🔍</span>
-        <input
-          type="text"
-          class="filter-search search-field"
-          v-model="searchQuery"
-          placeholder="Rechercher un champ (ex: contact, photo, prix…)"
-          id="data-preview-search"
-        />
-        <button
-          v-if="searchQuery"
-          class="search-clear"
-          @click="searchQuery = ''"
-          title="Effacer la recherche"
-        >✕</button>
-      </div>
+      <select
+        v-model="counterColumnIndex"
+        class="column-select"
+        id="column-select"
+      >
+        <option :value="-1">🔍 Toutes les colonnes</option>
+        <option v-for="(header, idx) in columnHeaders" :key="idx" :value="idx">
+          {{ idx + 1 }}. {{ cleanHeader(header) }}
+        </option>
+      </select>
 
       <div class="search-wrapper ref-search-wrapper">
         <span class="search-icon">🏷️</span>
@@ -33,6 +27,23 @@
           class="search-clear"
           @click="refQuery = ''"
           title="Effacer le filtre référence"
+        >✕</button>
+      </div>
+
+      <div class="search-wrapper counter-search-wrapper">
+        <span class="search-icon">📊</span>
+        <input
+          type="text"
+          class="filter-search search-field"
+          v-model="counterQuery"
+          placeholder="Valeur à compter (ex: vente, appartement…)"
+          id="data-counter-search"
+        />
+        <button
+          v-if="counterQuery"
+          class="search-clear"
+          @click="counterQuery = ''"
+          title="Effacer"
         >✕</button>
       </div>
 
@@ -54,60 +65,17 @@
       </div>
     </div>
 
-    <!-- Compteur de valeurs -->
-    <div class="counter-bar" id="data-counter-bar">
-      <div class="counter-bar-label">
-        <span class="counter-icon">📊</span> Compteur
-      </div>
-      <select
-        v-model="counterColumnIndex"
-        class="counter-column-select"
-        id="counter-column-select"
-      >
-        <option :value="-1">Toutes les colonnes</option>
-        <option v-for="(header, idx) in columnHeaders" :key="idx" :value="idx">
-          {{ idx + 1 }}. {{ header }}
-        </option>
-      </select>
-      <div class="search-wrapper counter-search-wrapper">
-        <span class="search-icon">🔎</span>
-        <input
-          type="text"
-          class="filter-search search-field"
-          v-model="counterQuery"
-          placeholder="Valeur à compter (ex: vente, appartement…)"
-          id="data-counter-search"
-        />
-        <button
-          v-if="counterQuery"
-          class="search-clear"
-          @click="counterQuery = ''"
-          title="Effacer"
-        >✕</button>
-      </div>
-    </div>
-
     <!-- Résultat du compteur -->
     <div v-if="counterQuery" class="search-results-info counter-results-info" id="counter-results-info">
       <span v-if="counterResult.count > 0">
         📊 <strong>{{ counterResult.count }}</strong> annonce(s) sur <strong>{{ dataRows.length }}</strong>
         contiennent « <em>{{ counterQuery }}</em> »
-        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ columnHeaders[counterColumnIndex] }}</strong></template>
+        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ cleanHeader(columnHeaders[counterColumnIndex]) }}</strong></template>
         — <strong>{{ counterResult.percent }}%</strong>
       </span>
       <span v-else class="no-results">
         ❌ Aucune annonce ne contient « <em>{{ counterQuery }}</em> »
-        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ columnHeaders[counterColumnIndex] }}</strong></template>
-      </span>
-    </div>
-
-    <!-- Search results indicator -->
-    <div v-if="searchQuery" class="search-results-info" id="search-results-info">
-      <span v-if="filteredColumnIndices.length > 0">
-        🎯 <strong>{{ filteredColumnIndices.length }}</strong> champ(s) trouvé(s) sur {{ columnHeaders.length }} pour « <em>{{ searchQuery }}</em> »
-      </span>
-      <span v-else class="no-results">
-        ❌ Aucun champ ne correspond à « <em>{{ searchQuery }}</em> »
+        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ cleanHeader(columnHeaders[counterColumnIndex]) }}</strong></template>
       </span>
     </div>
 
@@ -139,13 +107,13 @@
 
     <!-- ========== MODE TABLEAU ========== -->
     <template v-if="viewMode === 'table'">
-      <div class="table-container" style="max-height: 500px; overflow: auto;" v-if="filteredColumnIndices.length > 0 || !searchQuery">
+      <div class="table-container" style="max-height: 500px; overflow: auto;">
         <table class="data-table" id="data-table-view">
           <thead>
             <tr>
               <th style="position: sticky; left: 0; z-index: 2; background: var(--bg-surface-elevated);">#</th>
               <th v-for="colIdx in displayColumnIndices" :key="colIdx">
-                <span class="col-rank">{{ colIdx + 1 }}</span> {{ columnHeaders[colIdx] }}
+                <span class="col-rank">{{ colIdx + 1 }}</span> {{ cleanHeader(columnHeaders[colIdx]) }}
               </th>
             </tr>
           </thead>
@@ -208,7 +176,7 @@
             ]"
           >
             <div class="field-rank">{{ colIdx + 1 }}</div>
-            <div class="field-name">{{ columnHeaders[colIdx] }}</div>
+            <div class="field-name">{{ cleanHeader(columnHeaders[colIdx]) }}</div>
             <div class="field-value" :title="currentRow[colIdx]">
               <template v-if="currentRow[colIdx]">
                 {{ currentRow[colIdx] }}
@@ -242,33 +210,23 @@ const ITEMS_PER_PAGE = 50
 // --- State ---
 const currentPage = ref(1)
 const highlightErrors = ref(false)
-const searchQuery = ref('')
 const refQuery = ref('')
 const viewMode = ref<'table' | 'card'>('table')
 const cardIndex = ref(0)
 const counterQuery = ref('')
 const counterColumnIndex = ref(-1)
 
-// --- Computed : filtrage colonnes ---
-const filteredColumnIndices = computed(() => {
-  if (!searchQuery.value.trim()) return []
-  const q = searchQuery.value.toLowerCase().trim()
-  const indices: number[] = []
-  for (let i = 0; i < props.columnHeaders.length; i++) {
-    const header = props.columnHeaders[i] || ''
-    const rankStr = String(i + 1)
-    if (header.toLowerCase().includes(q) || rankStr === q) {
-      indices.push(i)
-    }
-  }
-  return indices
-})
+// --- Helper : nettoyer le préfixe "N - " des en-têtes CSV ---
+function cleanHeader(header: string | undefined): string {
+  if (!header) return ''
+  return header.replace(/^\d+\s*-\s*/, '')
+}
 
+// --- Computed : colonnes affichées ---
 const displayColumnIndices = computed(() => {
-  if (searchQuery.value.trim() && filteredColumnIndices.value.length > 0) {
-    return filteredColumnIndices.value
+  if (counterColumnIndex.value >= 0) {
+    return [counterColumnIndex.value]
   }
-  // Si pas de recherche, afficher toutes les colonnes
   return props.columnHeaders.map((_, i) => i)
 })
 
@@ -376,8 +334,8 @@ function formatSpaces(str: string, maxLen: number): string {
   return result.length > maxLen ? result.slice(0, maxLen) + '…' : result
 }
 
-// Reset page quand la recherche change
-watch(searchQuery, () => {
+// Reset page quand la colonne sélectionnée change
+watch(counterColumnIndex, () => {
   currentPage.value = 1
 })
 
@@ -395,18 +353,40 @@ watch(() => props.dataRows, () => {
 </script>
 
 <style scoped>
+/* Column select */
+.column-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  min-width: 220px;
+  max-width: 340px;
+  transition: border-color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.column-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 232, 119, 34), 0.15);
+}
+
 /* Search wrapper */
 .search-wrapper {
   position: relative;
   display: flex;
   align-items: center;
   flex: 1;
-  min-width: 250px;
+  min-width: 180px;
 }
 
 .ref-search-wrapper {
-  flex: 0 1 260px;
-  min-width: 180px;
+  flex: 0 1 240px;
+  min-width: 160px;
 }
 
 .ref-results-info {
@@ -461,54 +441,10 @@ watch(() => props.dataRows, () => {
   color: var(--color-critique);
 }
 
-/* Counter bar */
-.counter-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--bg-surface-elevated);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  margin-bottom: 12px;
-}
-
-.counter-bar-label {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.counter-icon {
-  font-size: 0.95rem;
-}
-
-.counter-column-select {
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 0.82rem;
-  cursor: pointer;
-  min-width: 200px;
-  max-width: 320px;
-  transition: border-color var(--transition-fast);
-}
-
-.counter-column-select:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 232, 119, 34), 0.15);
-}
-
+/* Counter search */
 .counter-search-wrapper {
   flex: 1;
-  min-width: 200px;
+  min-width: 180px;
 }
 
 .counter-results-info {

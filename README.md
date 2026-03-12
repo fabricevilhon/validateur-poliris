@@ -23,7 +23,7 @@ Outil de validation de fichiers CSV au format **Poliris** pour les annonces immo
 - **Dashboard de synthèse** avec compteurs par sévérité et graphique par catégorie
 - **Tableau d'erreurs** avec filtrage, tri et pagination
 - **Aperçu des données** avec surlignage des lignes en erreur
-- **Recherche globale** des champs par nom ou numéro de rang (Quick Search)
+- **Sélecteur de colonnes** : menu déroulant pour cibler une colonne spécifique (filtre l'affichage + cible le compteur)
 - **Filtre par référence agence** pour cibler une annonce précise
 - **Vue fiche** annonce par annonce avec navigation et filtrage intégré
 - **Compteur de valeurs** : recherche dans les données avec comptage (global ou par colonne ciblée), pourcentage affiché

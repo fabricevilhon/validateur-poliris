@@ -54,6 +54,53 @@
       </div>
     </div>
 
+    <!-- Compteur de valeurs -->
+    <div class="counter-bar" id="data-counter-bar">
+      <div class="counter-bar-label">
+        <span class="counter-icon">📊</span> Compteur
+      </div>
+      <select
+        v-model="counterColumnIndex"
+        class="counter-column-select"
+        id="counter-column-select"
+      >
+        <option :value="-1">Toutes les colonnes</option>
+        <option v-for="(header, idx) in columnHeaders" :key="idx" :value="idx">
+          {{ idx + 1 }}. {{ header }}
+        </option>
+      </select>
+      <div class="search-wrapper counter-search-wrapper">
+        <span class="search-icon">🔎</span>
+        <input
+          type="text"
+          class="filter-search search-field"
+          v-model="counterQuery"
+          placeholder="Valeur à compter (ex: vente, appartement…)"
+          id="data-counter-search"
+        />
+        <button
+          v-if="counterQuery"
+          class="search-clear"
+          @click="counterQuery = ''"
+          title="Effacer"
+        >✕</button>
+      </div>
+    </div>
+
+    <!-- Résultat du compteur -->
+    <div v-if="counterQuery" class="search-results-info counter-results-info" id="counter-results-info">
+      <span v-if="counterResult.count > 0">
+        📊 <strong>{{ counterResult.count }}</strong> annonce(s) sur <strong>{{ dataRows.length }}</strong>
+        contiennent « <em>{{ counterQuery }}</em> »
+        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ columnHeaders[counterColumnIndex] }}</strong></template>
+        — <strong>{{ counterResult.percent }}%</strong>
+      </span>
+      <span v-else class="no-results">
+        ❌ Aucune annonce ne contient « <em>{{ counterQuery }}</em> »
+        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ columnHeaders[counterColumnIndex] }}</strong></template>
+      </span>
+    </div>
+
     <!-- Search results indicator -->
     <div v-if="searchQuery" class="search-results-info" id="search-results-info">
       <span v-if="filteredColumnIndices.length > 0">
@@ -199,6 +246,8 @@ const searchQuery = ref('')
 const refQuery = ref('')
 const viewMode = ref<'table' | 'card'>('table')
 const cardIndex = ref(0)
+const counterQuery = ref('')
+const counterColumnIndex = ref(-1)
 
 // --- Computed : filtrage colonnes ---
 const filteredColumnIndices = computed(() => {
@@ -279,6 +328,28 @@ const errorIndex = computed(() => {
   return idx
 })
 
+// --- Computed : compteur de valeurs ---
+const counterResult = computed(() => {
+  if (!counterQuery.value.trim()) return { count: 0, percent: '0' }
+  const q = counterQuery.value.toLowerCase().trim()
+  let count = 0
+  for (const row of props.dataRows) {
+    if (counterColumnIndex.value >= 0) {
+      // Recherche ciblée sur une colonne
+      const val = row[counterColumnIndex.value] || ''
+      if (val.toLowerCase().includes(q)) count++
+    } else {
+      // Recherche globale sur toutes les colonnes
+      const found = row.some(cell => (cell || '').toLowerCase().includes(q))
+      if (found) count++
+    }
+  }
+  const percent = props.dataRows.length > 0
+    ? ((count / props.dataRows.length) * 100).toFixed(1)
+    : '0'
+  return { count, percent }
+})
+
 // --- Méthodes ---
 // actualRowIndex n'est plus nécessaire car chaque entry porte son originalIndex
 
@@ -334,7 +405,7 @@ watch(() => props.dataRows, () => {
 }
 
 .ref-search-wrapper {
-  flex: 0 1 280px;
+  flex: 0 1 260px;
   min-width: 180px;
 }
 
@@ -388,6 +459,61 @@ watch(() => props.dataRows, () => {
 
 .search-results-info .no-results {
   color: var(--color-critique);
+}
+
+/* Counter bar */
+.counter-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: 12px;
+}
+
+.counter-bar-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.counter-icon {
+  font-size: 0.95rem;
+}
+
+.counter-column-select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  min-width: 200px;
+  max-width: 320px;
+  transition: border-color var(--transition-fast);
+}
+
+.counter-column-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 232, 119, 34), 0.15);
+}
+
+.counter-search-wrapper {
+  flex: 1;
+  min-width: 200px;
+}
+
+.counter-results-info {
+  border-left-color: #8b5cf6;
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.06), var(--bg-surface-elevated));
 }
 
 /* View toggle */

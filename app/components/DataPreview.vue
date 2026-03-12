@@ -2,16 +2,44 @@
   <div class="fade-in">
     <!-- Toolbar : Column Select + Ref Filter + Counter + View Toggle -->
     <div class="filters-bar" id="data-preview-toolbar">
-      <select
-        v-model="counterColumnIndex"
-        class="column-select"
-        id="column-select"
-      >
-        <option :value="-1">🔍 Toutes les colonnes</option>
-        <option v-for="(header, idx) in columnHeaders" :key="idx" :value="idx">
-          {{ idx + 1 }}. {{ cleanHeader(header) }}
-        </option>
-      </select>
+      <div class="combobox" id="column-select" ref="comboboxRef">
+        <div class="combobox-trigger" @click="toggleDropdown">
+          <span class="combobox-display">
+            <template v-if="counterColumnIndex === -1">🔍 Toutes les colonnes</template>
+            <template v-else>{{ counterColumnIndex + 1 }}. {{ cleanHeader(columnHeaders[counterColumnIndex]) }}</template>
+          </span>
+          <span class="combobox-arrow">{{ dropdownOpen ? '▲' : '▼' }}</span>
+        </div>
+        <div v-if="dropdownOpen" class="combobox-dropdown">
+          <input
+            ref="comboboxInputRef"
+            type="text"
+            class="combobox-search"
+            v-model="columnSearchQuery"
+            placeholder="Rechercher un champ…"
+            @keydown.escape="closeDropdown"
+          />
+          <div class="combobox-options">
+            <div
+              class="combobox-option"
+              :class="{ 'combobox-option-active': counterColumnIndex === -1 }"
+              @click="selectColumn(-1)"
+            >🔍 Toutes les colonnes</div>
+            <div
+              v-for="item in filteredColumnOptions"
+              :key="item.idx"
+              class="combobox-option"
+              :class="{ 'combobox-option-active': counterColumnIndex === item.idx }"
+              @click="selectColumn(item.idx)"
+            >
+              <span class="combobox-option-rank">{{ item.idx + 1 }}.</span> {{ item.label }}
+            </div>
+            <div v-if="filteredColumnOptions.length === 0" class="combobox-no-results">
+              Aucun champ trouvé
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="search-wrapper ref-search-wrapper">
         <span class="search-icon">🏷️</span>
@@ -196,7 +224,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { ValidationError } from '~/utils/poliris-schema'
 
 const props = defineProps<{
@@ -215,12 +243,27 @@ const viewMode = ref<'table' | 'card'>('table')
 const cardIndex = ref(0)
 const counterQuery = ref('')
 const counterColumnIndex = ref(-1)
+const dropdownOpen = ref(false)
+const columnSearchQuery = ref('')
+const comboboxRef = ref<HTMLElement | null>(null)
+const comboboxInputRef = ref<HTMLInputElement | null>(null)
 
 // --- Helper : nettoyer le préfixe "N - " des en-têtes CSV ---
 function cleanHeader(header: string | undefined): string {
   if (!header) return ''
   return header.replace(/^\d+\s*-\s*/, '')
 }
+
+// --- Computed : options filtrées du combobox colonnes ---
+const filteredColumnOptions = computed(() => {
+  const q = columnSearchQuery.value.toLowerCase().trim()
+  const options = props.columnHeaders.map((header, idx) => ({
+    idx,
+    label: cleanHeader(header)
+  }))
+  if (!q) return options
+  return options.filter(opt => opt.label.toLowerCase().includes(q))
+})
 
 // --- Computed : colonnes affichées ---
 const displayColumnIndices = computed(() => {
@@ -334,6 +377,32 @@ function formatSpaces(str: string, maxLen: number): string {
   return result.length > maxLen ? result.slice(0, maxLen) + '…' : result
 }
 
+// --- Combobox : toggle / select / close ---
+function toggleDropdown() {
+  dropdownOpen.value = !dropdownOpen.value
+  if (dropdownOpen.value) {
+    columnSearchQuery.value = ''
+    nextTick(() => comboboxInputRef.value?.focus())
+  }
+}
+
+function selectColumn(idx: number) {
+  counterColumnIndex.value = idx
+  dropdownOpen.value = false
+  columnSearchQuery.value = ''
+}
+
+function closeDropdown() {
+  dropdownOpen.value = false
+  columnSearchQuery.value = ''
+}
+
+function onClickOutside(e: MouseEvent) {
+  if (comboboxRef.value && !comboboxRef.value.contains(e.target as Node)) {
+    closeDropdown()
+  }
+}
+
 // Reset page quand la colonne sélectionnée change
 watch(counterColumnIndex, () => {
   currentPage.value = 1
@@ -350,11 +419,26 @@ watch(() => props.dataRows, () => {
   cardIndex.value = 0
   currentPage.value = 1
 })
+
+// --- Lifecycle : click outside listener ---
+onMounted(() => document.addEventListener('click', onClickOutside))
+onUnmounted(() => document.removeEventListener('click', onClickOutside))
 </script>
 
 <style scoped>
-/* Column select */
-.column-select {
+/* Combobox */
+.combobox {
+  position: relative;
+  min-width: 220px;
+  max-width: 340px;
+  flex-shrink: 0;
+}
+
+.combobox-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -363,16 +447,100 @@ watch(() => props.dataRows, () => {
   font-family: inherit;
   font-size: 0.82rem;
   cursor: pointer;
-  min-width: 220px;
-  max-width: 340px;
   transition: border-color var(--transition-fast);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.combobox-trigger:hover {
+  border-color: var(--color-primary);
+}
+
+.combobox-display {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.combobox-arrow {
+  font-size: 0.65rem;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
-.column-select:focus {
+.combobox-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 340px;
+  max-height: 360px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: combobox-fade-in 0.15s ease;
+}
+
+@keyframes combobox-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.combobox-search {
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  font-family: inherit;
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  background: var(--bg-surface-elevated);
   outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 232, 119, 34), 0.15);
+}
+
+.combobox-search::placeholder {
+  color: var(--text-muted);
+}
+
+.combobox-options {
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.combobox-option {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  color: var(--text-primary);
+}
+
+.combobox-option:hover {
+  background: var(--bg-surface-hover, rgba(0, 0, 0, 0.04));
+}
+
+.combobox-option-active {
+  background: rgba(var(--color-primary-rgb, 232, 119, 34), 0.1);
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.combobox-option-rank {
+  display: inline-block;
+  min-width: 28px;
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.combobox-no-results {
+  padding: 14px 12px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 /* Search wrapper */

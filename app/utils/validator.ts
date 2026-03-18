@@ -305,17 +305,11 @@ function validateRow(rowNum: number, rowData: string[], allFieldsData: string[][
         if (!rule) continue
 
         // Vérification obligatoire
-        // Exception : NB de pièces (rang 18) non obligatoire pour certains types de bien
-        const TYPES_SANS_PIECES = ['terrain', 'inconnu', 'parking/box', 'boutique', 'local', 'loft/atelier/surface', 'ground', 'shop', 'loft/workshop/area']
-        const skipObligatoire = rule.rang === 18 && TYPES_SANS_PIECES.includes(typeBien)
-
-        if (!skipObligatoire) {
-            const oblError = checkObligatoire(cleanValue, rule)
-            if (oblError) {
-                const err = makeError(rowNum, annonceRef, rule, cleanValue, oblError)
-                errors.push(err)
-                continue
-            }
+        const oblError = checkObligatoire(cleanValue, rule)
+        if (oblError) {
+            const err = makeError(rowNum, annonceRef, rule, cleanValue, oblError)
+            errors.push(err)
+            continue
         }
 
         if (!cleanValue) continue

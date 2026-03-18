@@ -33,3 +33,4 @@ export { defineLazyHydrationComponent } from '#app/composables/lazy-hydration';
 export { exportToExcel, exportErrorReport, downloadBlob } from '../app/utils/export';
 export { MANDATORY_RANKS, EXPECTED_COLUMNS, REF_ANNONCE_INDEX, KNOWN_FIELDS, Partial, COLUMN_NAMES, buildSchema, FieldType, FieldRule, ErrorSeverity, ValidationError } from '../app/utils/poliris-schema';
 export { tryDecode, validateFile, ValidationResult } from '../app/utils/validator';
+export { useNuxtDevTools } from '../node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools';

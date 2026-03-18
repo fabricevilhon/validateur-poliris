@@ -5,8 +5,18 @@
       <div class="combobox" id="column-select" ref="comboboxRef">
         <div class="combobox-trigger" @click="toggleDropdown">
           <span class="combobox-display">
-            <template v-if="counterColumnIndex === -1">🔍 Toutes les colonnes</template>
-            <template v-else>{{ counterColumnIndex + 1 }}. {{ cleanHeader(columnHeaders[counterColumnIndex]) }}</template>
+            <template v-if="selectedColumnIndices.size === 0">🔍 Toutes les colonnes</template>
+            <template v-else>
+              <span
+                v-for="idx in sortedSelectedIndices"
+                :key="idx"
+                class="column-badge"
+              >
+                <span class="column-badge-rank">{{ idx + 1 }}</span>
+                {{ cleanHeader(columnHeaders[idx]) }}
+                <button class="column-badge-remove" @click.stop="toggleColumn(idx)" title="Retirer">✕</button>
+              </span>
+            </template>
           </span>
           <span class="combobox-arrow">{{ dropdownOpen ? '▲' : '▼' }}</span>
         </div>
@@ -21,17 +31,24 @@
           />
           <div class="combobox-options">
             <div
-              class="combobox-option"
-              :class="{ 'combobox-option-active': counterColumnIndex === -1 }"
-              @click="selectColumn(-1)"
+              class="combobox-option combobox-option-reset"
+              :class="{ 'combobox-option-active': selectedColumnIndices.size === 0 }"
+              @click="clearSelection"
             >🔍 Toutes les colonnes</div>
             <div
               v-for="item in filteredColumnOptions"
               :key="item.idx"
               class="combobox-option"
-              :class="{ 'combobox-option-active': counterColumnIndex === item.idx }"
-              @click="selectColumn(item.idx)"
+              :class="{ 'combobox-option-active': selectedColumnIndices.has(item.idx) }"
+              @click="toggleColumn(item.idx)"
             >
+              <input
+                type="checkbox"
+                class="combobox-checkbox"
+                :checked="selectedColumnIndices.has(item.idx)"
+                @click.stop
+                @change="toggleColumn(item.idx)"
+              />
               <span class="combobox-option-rank">{{ item.idx + 1 }}.</span> {{ item.label }}
             </div>
             <div v-if="filteredColumnOptions.length === 0" class="combobox-no-results">
@@ -98,12 +115,12 @@
       <span v-if="counterResult.count > 0">
         📊 <strong>{{ counterResult.count }}</strong> annonce(s) sur <strong>{{ dataRows.length }}</strong>
         contiennent « <em>{{ counterQuery }}</em> »
-        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ cleanHeader(columnHeaders[counterColumnIndex]) }}</strong></template>
+        <template v-if="selectedColumnIndices.size > 0"> dans <strong>{{ selectedColumnsLabel }}</strong></template>
         — <strong>{{ counterResult.percent }}%</strong>
       </span>
       <span v-else class="no-results">
         ❌ Aucune annonce ne contient « <em>{{ counterQuery }}</em> »
-        <template v-if="counterColumnIndex >= 0"> dans <strong>{{ cleanHeader(columnHeaders[counterColumnIndex]) }}</strong></template>
+        <template v-if="selectedColumnIndices.size > 0"> dans <strong>{{ selectedColumnsLabel }}</strong></template>
       </span>
     </div>
 
@@ -242,7 +259,7 @@ const refQuery = ref('')
 const viewMode = ref<'table' | 'card'>('table')
 const cardIndex = ref(0)
 const counterQuery = ref('')
-const counterColumnIndex = ref(-1)
+const selectedColumnIndices = ref<Set<number>>(new Set())
 const dropdownOpen = ref(false)
 const columnSearchQuery = ref('')
 const comboboxRef = ref<HTMLElement | null>(null)
@@ -267,10 +284,22 @@ const filteredColumnOptions = computed(() => {
 
 // --- Computed : colonnes affichées ---
 const displayColumnIndices = computed(() => {
-  if (counterColumnIndex.value >= 0) {
-    return [counterColumnIndex.value]
+  if (selectedColumnIndices.value.size > 0) {
+    return [...selectedColumnIndices.value].sort((a, b) => a - b)
   }
   return props.columnHeaders.map((_, i) => i)
+})
+
+// --- Computed : indices sélectionnés triés (pour les badges) ---
+const sortedSelectedIndices = computed(() => {
+  return [...selectedColumnIndices.value].sort((a, b) => a - b)
+})
+
+// --- Computed : label des colonnes sélectionnées (pour le compteur) ---
+const selectedColumnsLabel = computed(() => {
+  const names = sortedSelectedIndices.value.map(idx => cleanHeader(props.columnHeaders[idx]))
+  if (names.length <= 2) return names.join(' et ')
+  return names.slice(0, -1).join(', ') + ' et ' + names[names.length - 1]
 })
 
 // --- Computed : filtrage par référence (colonne index 1 = rang 2) ---
@@ -334,11 +363,16 @@ const counterResult = computed(() => {
   if (!counterQuery.value.trim()) return { count: 0, percent: '0' }
   const q = counterQuery.value.toLowerCase().trim()
   let count = 0
+  const selected = selectedColumnIndices.value
   for (const row of props.dataRows) {
-    if (counterColumnIndex.value >= 0) {
-      // Recherche ciblée sur une colonne
-      const val = row[counterColumnIndex.value] || ''
-      if (val.toLowerCase().includes(q)) count++
+    if (selected.size > 0) {
+      // Recherche ciblée sur les colonnes sélectionnées
+      let found = false
+      for (const colIdx of selected) {
+        const val = row[colIdx] || ''
+        if (val.toLowerCase().includes(q)) { found = true; break }
+      }
+      if (found) count++
     } else {
       // Recherche globale sur toutes les colonnes
       const found = row.some(cell => (cell || '').toLowerCase().includes(q))
@@ -386,9 +420,18 @@ function toggleDropdown() {
   }
 }
 
-function selectColumn(idx: number) {
-  counterColumnIndex.value = idx
-  dropdownOpen.value = false
+function toggleColumn(idx: number) {
+  const newSet = new Set(selectedColumnIndices.value)
+  if (newSet.has(idx)) {
+    newSet.delete(idx)
+  } else {
+    newSet.add(idx)
+  }
+  selectedColumnIndices.value = newSet
+}
+
+function clearSelection() {
+  selectedColumnIndices.value = new Set()
   columnSearchQuery.value = ''
 }
 
@@ -403,10 +446,10 @@ function onClickOutside(e: MouseEvent) {
   }
 }
 
-// Reset page quand la colonne sélectionnée change
-watch(counterColumnIndex, () => {
+// Reset page quand les colonnes sélectionnées changent
+watch(selectedColumnIndices, () => {
   currentPage.value = 1
-})
+}, { deep: true })
 
 // Reset page et card quand le filtre référence change
 watch(refQuery, () => {
@@ -430,7 +473,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 .combobox {
   position: relative;
   min-width: 220px;
-  max-width: 340px;
+  max-width: 480px;
   flex-shrink: 0;
 }
 
@@ -448,8 +491,9 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   font-size: 0.82rem;
   cursor: pointer;
   transition: border-color var(--transition-fast);
-  white-space: nowrap;
   overflow: hidden;
+  flex-wrap: wrap;
+  min-height: 38px;
 }
 
 .combobox-trigger:hover {
@@ -457,8 +501,12 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 }
 
 .combobox-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 1;
+  align-items: center;
 }
 
 .combobox-arrow {
@@ -527,12 +575,65 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   color: var(--color-primary);
 }
 
+.combobox-checkbox {
+  margin-right: 8px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .combobox-option-rank {
   display: inline-block;
   min-width: 28px;
   color: var(--text-muted);
   font-weight: 700;
   font-size: 0.75rem;
+}
+
+/* Column badges */
+.column-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(var(--color-primary-rgb, 232, 119, 34), 0.12);
+  border: 1px solid rgba(var(--color-primary-rgb, 232, 119, 34), 0.3);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.column-badge-rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 3px;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.column-badge-remove {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.column-badge-remove:hover {
+  opacity: 1;
 }
 
 .combobox-no-results {

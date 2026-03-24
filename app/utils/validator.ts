@@ -456,6 +456,7 @@ export interface ValidationResult {
     detectedColumns: number
     isGlobalStructureError: boolean
     globalStructureMsg: string
+    uniqueAgencyIds: string[]
 }
 
 // =============================================================================
@@ -473,6 +474,7 @@ export function validateFile(content: string): Omit<ValidationResult, 'detectedE
     // =========================================================================
     const refLocations: Record<string, number[]> = {}
     const lineLengths: number[] = []
+    const agencyIdSet = new Set<string>()
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
@@ -484,6 +486,12 @@ export function validateFile(content: string): Omit<ValidationResult, 'detectedE
         }
 
         lineLengths.push(tempFields.length)
+
+        // Collecter les identifiants agences distincts (champ index 0)
+        if (tempFields.length > 0) {
+            const agencyId = tempFields[0].replace(/"/g, '').trim()
+            if (agencyId) agencyIdSet.add(agencyId)
+        }
 
         if (tempFields.length > REF_ANNONCE_INDEX) {
             const r = tempFields[REF_ANNONCE_INDEX].replace(/"/g, '').trim()
@@ -652,5 +660,6 @@ export function validateFile(content: string): Omit<ValidationResult, 'detectedE
         detectedColumns,
         isGlobalStructureError,
         globalStructureMsg,
+        uniqueAgencyIds: [...agencyIdSet].sort(),
     }
 }

@@ -869,6 +869,44 @@ body {
   color: var(--color-success);
 }
 
+/* Multi-agency alert — structured layout */
+#multi-agency-alert {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.alert-warning-header {
+  font-size: 0.95rem;
+}
+
+.alert-warning-ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.agency-id-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: var(--radius-xl);
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: 0.02em;
+  color: var(--color-warning);
+}
+
+.alert-warning-hint {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  font-style: italic;
+  margin-top: 2px;
+}
+
 /* =============================================================================
    CATEGORY CHART (bar chart simple)
    ============================================================================= */

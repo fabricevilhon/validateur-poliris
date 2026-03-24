@@ -20,6 +20,7 @@ Outil de validation de fichiers CSV au format **Poliris** pour les annonces immo
   - Coordonnées GPS (latitude/longitude)
   - Doublons de référence
   - Structure CSV (nombre de colonnes, guillemets)
+- **Alerte identifiants agences multiples** : bannière d'avertissement affichée automatiquement si le fichier contient des identifiants agence différents (réseau multi-agences ou erreur de saisie)
 - **Dashboard de synthèse** avec compteurs par sévérité et graphique par catégorie
 - **Tableau d'erreurs** avec filtrage, tri et pagination
 - **Aperçu des données** avec surlignage des lignes en erreur

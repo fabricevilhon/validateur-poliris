@@ -23,6 +23,19 @@
       — {{ totalLines }} ligne(s) analysée(s)
     </div>
 
+    <!-- Alerte identifiants agences multiples -->
+    <div v-if="uniqueAgencyIds.length > 1 && !isValidating" class="alert alert-warning fade-in" id="multi-agency-alert">
+      <div class="alert-warning-header">
+        ⚠️ <strong>Attention : {{ uniqueAgencyIds.length }} identifiants agence différents détectés</strong>
+      </div>
+      <div class="alert-warning-ids">
+        <span v-for="id in uniqueAgencyIds" :key="id" class="agency-id-badge">{{ id }}</span>
+      </div>
+      <div class="alert-warning-hint">
+        Si ce fichier ne concerne qu'une seule agence, vérifiez qu'il n'y a pas d'erreur de saisie dans l'identifiant.
+      </div>
+    </div>
+
 
     <!-- Section 2 : Dashboard -->
     <div v-if="validationDone" class="card slide-up">
@@ -103,6 +116,7 @@ const detectedColumns = ref(334)
 const errors = ref<ValidationError[]>([])
 const dataRows = ref<string[][]>([])
 const columnHeaders = ref<string[]>([])
+const uniqueAgencyIds = ref<string[]>([])
 
 async function onFileLoaded(content: string, encoding: string, _fileName: string, _fileSize: string) {
   isValidating.value = true
@@ -119,6 +133,7 @@ async function onFileLoaded(content: string, encoding: string, _fileName: string
   columnHeaders.value = result.columnHeaders
   totalLines.value = result.totalLines
   detectedColumns.value = result.detectedColumns
+  uniqueAgencyIds.value = result.uniqueAgencyIds
 
   isValidating.value = false
   validationDone.value = true

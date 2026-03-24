@@ -1,1 +1,0 @@
-{"root":["./nuxt.d.ts","../app/app.vue","../app/components/datapreview.vue","../app/components/errordashboard.vue","../app/components/errortable.vue","../app/components/fileupload.vue","../app/pages/index.vue","../app/utils/export.ts","../app/utils/poliris-schema.ts","../app/utils/validator.ts"],"errors":true,"version":"5.9.3"}

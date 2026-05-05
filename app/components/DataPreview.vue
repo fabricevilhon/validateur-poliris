@@ -1321,15 +1321,15 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   z-index: 9999;
   background: #ffffff;
   border: 1px solid #f26522;
-  border-left: 8px solid #f26522;
+  border-left: 10px solid #f26522;
   border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
-  padding: 20px 30px;
+  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.5);
+  padding: 24px 35px;
   width: auto;
-  min-width: 400px;
-  max-width: 1100px; /* Plus large pour un aspect horizontal */
-  max-height: 65vh;   /* Un peu moins haut pour éviter de déborder */
-  overflow-y: auto;
+  min-width: 450px;
+  max-width: 1200px; /* Élargissement maximum pour aplatir le texte */
+  max-height: 95vh;   /* Presque toute la hauteur de l'écran si nécessaire */
+  overflow: visible;  /* Plus de barre de scroll interne */
   pointer-events: none;
   animation: tooltip-fade-in 0.1s ease-out;
 }

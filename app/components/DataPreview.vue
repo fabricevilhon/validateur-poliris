@@ -199,7 +199,7 @@
 
       <!-- Tooltip Dynamique -->
       <div v-if="tooltip.show" class="dynamic-tooltip" :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }">
-        <div class="tooltip-content" v-html="tooltip.content"></div>
+        <div class="tooltip-content" v-html="tooltipContent"></div>
       </div>
 
       <!-- Pagination -->
@@ -295,10 +295,11 @@ const comboboxInputRef = ref<HTMLInputElement | null>(null)
 // --- Tooltip State ---
 const tooltip = ref({
   show: false,
-  content: '',
   x: 0,
   y: 0
 })
+const currentHoveredText = ref('')
+const tooltipContent = computed(() => highlightCardText(currentHoveredText.value))
 
 // --- Helper : nettoyer le préfixe "N - " des en-têtes CSV ---
 function cleanHeader(header: string | undefined): string {
@@ -637,27 +638,38 @@ function closeDropdown() {
 function showTooltip(event: MouseEvent, text: string) {
   if (!text) return
   
-  // Surlignage du texte intégral pour l'info-bulle
-  const content = highlightCardText(text)
+  currentHoveredText.value = text
   
+  // Position initiale
   tooltip.value = {
+    ...tooltip.value,
     show: true,
-    content: content,
-    x: event.clientX + 10,
-    y: event.clientY + 10
+    x: event.clientX + 15,
+    y: event.clientY + 15
   }
   
-  // Ajustement si l'info-bulle dépasse à droite
+  // Ajustement si l'info-bulle dépasse
   nextTick(() => {
     const el = document.querySelector('.dynamic-tooltip') as HTMLElement
     if (el) {
       const rect = el.getBoundingClientRect()
-      if (rect.right > window.innerWidth) {
-        tooltip.value.x = window.innerWidth - rect.width - 20
+      const winW = window.innerWidth
+      const winH = window.innerHeight
+      
+      let newX = event.clientX + 15
+      let newY = event.clientY + 15
+      
+      if (newX + rect.width > winW) {
+        newX = winW - rect.width - 20
       }
-      if (rect.bottom > window.innerHeight) {
-        tooltip.value.y = event.clientY - rect.height - 10
+      
+      if (newY + rect.height > winH) {
+        newY = event.clientY - rect.height - 15
       }
+      
+      // Sécurité pour ne pas sortir en haut ou à gauche
+      tooltip.value.x = Math.max(10, newX)
+      tooltip.value.y = Math.max(10, newY)
     }
   })
 }
@@ -1289,37 +1301,56 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 }
 
 /* Tooltip Dynamique */
+</style>
+
+<style>
+/* Styles globaux pour l'info-bulle (pour v-html) */
 .dynamic-tooltip {
   position: fixed;
-  z-index: 1000;
-  background: var(--bg-surface);
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: 12px 16px;
-  max-width: 450px;
+  z-index: 9999;
+  background: #ffffff;
+  border: 1px solid #f26522;
+  border-left: 6px solid #f26522;
+  border-radius: 8px;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4);
+  padding: 18px 24px;
+  width: auto;
+  min-width: 350px;
+  max-width: 800px;
+  max-height: 75vh;
+  overflow-y: auto;
   pointer-events: none;
-  animation: tooltip-fade-in 0.2s ease;
+  animation: tooltip-fade-in 0.15s ease-out;
 }
 
-@keyframes tooltip-fade-in {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+[data-theme="dark"] .dynamic-tooltip {
+  background: #242424;
+  border-color: #f26522;
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
 }
 
 .tooltip-content {
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  line-height: 1.5;
-  white-space: pre-wrap;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+  line-height: 1.6;
+  white-space: break-spaces;
   word-break: break-word;
+  overflow-wrap: break-word;
 }
 
-.tooltip-content :deep(.search-mark) {
-  background: rgba(242, 101, 34, 0.25);
-  color: var(--color-primary-dark);
-  font-weight: 700;
-  padding: 0 2px;
-  border-radius: 2px;
+[data-theme="dark"] .tooltip-content {
+  color: #e8e8e8;
+}
+
+.tooltip-content mark,
+.tooltip-content .search-mark {
+  background-color: #ffeb3b !important;
+  color: #000000 !important;
+  box-shadow: 0 0 0 2px #f26522;
+  font-weight: 800 !important;
+  padding: 1px 3px;
+  border-radius: 3px;
+  display: inline;
 }
 </style>

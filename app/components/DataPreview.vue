@@ -76,12 +76,12 @@
       </div>
 
       <div class="search-wrapper counter-search-wrapper">
-        <span class="search-icon">📊</span>
+        <span class="search-icon">🔎</span>
         <input
           type="text"
           class="filter-search search-field"
           v-model="counterQuery"
-          placeholder="Valeur à compter (ex: vente, appartement…)"
+          placeholder="Rechercher une valeur (ex: vente, appartement…)"
           id="data-counter-search"
         />
         <button
@@ -110,18 +110,26 @@
       </div>
     </div>
 
-    <!-- Résultat du compteur -->
+    <!-- Résultat de la recherche avec navigation -->
     <div v-if="counterQuery" class="search-results-info counter-results-info" id="counter-results-info">
-      <span v-if="counterResult.count > 0">
-        📊 <strong>{{ counterResult.count }}</strong> annonce(s) sur <strong>{{ dataRows.length }}</strong>
-        contiennent « <em>{{ counterQuery }}</em> »
-        <template v-if="selectedColumnIndices.size > 0"> dans <strong>{{ selectedColumnsLabel }}</strong></template>
-        — <strong>{{ counterResult.percent }}%</strong>
-      </span>
-      <span v-else class="no-results">
-        ❌ Aucune annonce ne contient « <em>{{ counterQuery }}</em> »
-        <template v-if="selectedColumnIndices.size > 0"> dans <strong>{{ selectedColumnsLabel }}</strong></template>
-      </span>
+      <div class="search-nav-bar">
+        <span v-if="searchMatches.length > 0" class="search-nav-label">
+          🔎 Résultat <strong>{{ currentMatchIndex + 1 }}</strong> / <strong>{{ searchMatches.length }}</strong>
+          <span class="search-nav-detail">
+            ({{ counterResult.count }} annonce(s) sur {{ dataRows.length }}
+            <template v-if="selectedColumnIndices.size > 0"> dans {{ selectedColumnsLabel }}</template>
+            — {{ counterResult.percent }}%)
+          </span>
+        </span>
+        <span v-else class="no-results">
+          ❌ Aucun résultat pour « <em>{{ counterQuery }}</em> »
+          <template v-if="selectedColumnIndices.size > 0"> dans <strong>{{ selectedColumnsLabel }}</strong></template>
+        </span>
+        <div v-if="searchMatches.length > 0" class="search-nav-buttons">
+          <button class="btn btn-sm btn-secondary search-nav-btn" @click="goToPrevMatch" title="Résultat précédent">▲</button>
+          <button class="btn btn-sm btn-secondary search-nav-btn" @click="goToNextMatch" title="Résultat suivant">▼</button>
+        </div>
+      </div>
     </div>
 
     <!-- Ref filter results indicator -->
@@ -164,14 +172,19 @@
           </thead>
           <tbody>
             <tr v-for="(entry, rowIdx) in paginatedRows" :key="rowIdx"
+                :ref="el => setTableRowRef(el as HTMLElement | null, entry.originalIndex)"
                 :class="{ 'row-error': highlightErrors && errorRowIndices.has(entry.originalIndex) }">
               <td style="position: sticky; left: 0; z-index: 1; background: var(--bg-surface); font-weight: 600; color: var(--text-muted);">
                 {{ entry.originalIndex }}
               </td>
               <td v-for="colIdx in displayColumnIndices" :key="colIdx" :title="entry.row[colIdx]"
-                  :class="{ 'cell-space-warning': colIdx === 0 && hasLeadingTrailingSpaces(entry.row[colIdx]) }">
+                  :class="cellHighlightClass(entry.originalIndex, colIdx)"
+                  :ref="el => setCellRef(el as HTMLElement | null, entry.originalIndex, colIdx)">
                 <template v-if="colIdx === 0 && hasLeadingTrailingSpaces(entry.row[colIdx])">
                   <span class="space-indicator">⚠</span> {{ formatSpaces(entry.row[colIdx], 50) }}
+                </template>
+                <template v-else-if="isCellMatch(entry.originalIndex, colIdx)">
+                  <span v-html="highlightText(entry.row[colIdx], 50)"></span>
                 </template>
                 <template v-else>
                   {{ truncate(entry.row[colIdx], 50) }}
@@ -212,18 +225,24 @@
           <div
             v-for="colIdx in displayColumnIndices"
             :key="colIdx"
+            :ref="el => setCardFieldRef(el as HTMLElement | null, colIdx)"
             :class="[
               'field-card',
               {
                 'field-empty': !currentRow[colIdx],
-                'field-error': highlightErrors && fieldHasError(colIdx + 1)
+                'field-error': highlightErrors && fieldHasError(colIdx + 1),
+                'field-highlight': isCardCellMatch(colIdx),
+                'field-highlight-active': isCardCellActiveMatch(colIdx)
               }
             ]"
           >
             <div class="field-rank">{{ colIdx + 1 }}</div>
             <div class="field-name">{{ cleanHeader(columnHeaders[colIdx]) }}</div>
             <div class="field-value" :title="currentRow[colIdx]">
-              <template v-if="currentRow[colIdx]">
+              <template v-if="currentRow[colIdx] && isCardCellMatch(colIdx)">
+                <span v-html="highlightCardText(currentRow[colIdx])"></span>
+              </template>
+              <template v-else-if="currentRow[colIdx]">
                 {{ currentRow[colIdx] }}
               </template>
               <span v-else class="field-empty-label">(vide)</span>
@@ -241,7 +260,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, type Ref } from 'vue'
 import type { ValidationError } from '~/utils/poliris-schema'
 
 const props = defineProps<{
@@ -259,6 +278,7 @@ const refQuery = ref('')
 const viewMode = ref<'table' | 'card'>('table')
 const cardIndex = ref(0)
 const counterQuery = ref('')
+const currentMatchIndex = ref(0)
 const selectedColumnIndices = ref<Set<number>>(new Set())
 const dropdownOpen = ref(false)
 const columnSearchQuery = ref('')
@@ -358,32 +378,190 @@ const errorIndex = computed(() => {
   return idx
 })
 
-// --- Computed : compteur de valeurs ---
-const counterResult = computed(() => {
-  if (!counterQuery.value.trim()) return { count: 0, percent: '0' }
+// --- Computed : toutes les correspondances (row, col) ---
+interface SearchMatch {
+  rowOriginalIndex: number  // index original (1-based) de la ligne
+  rowDataIndex: number      // index dans dataRows (0-based)
+  colIdx: number            // index de la colonne
+}
+
+const searchMatches = computed<SearchMatch[]>(() => {
+  if (!counterQuery.value.trim()) return []
   const q = counterQuery.value.toLowerCase().trim()
-  let count = 0
   const selected = selectedColumnIndices.value
-  for (const row of props.dataRows) {
-    if (selected.size > 0) {
-      // Recherche ciblée sur les colonnes sélectionnées
-      let found = false
-      for (const colIdx of selected) {
-        const val = row[colIdx] || ''
-        if (val.toLowerCase().includes(q)) { found = true; break }
+  const matches: SearchMatch[] = []
+  const colsToSearch = selected.size > 0
+    ? [...selected].sort((a, b) => a - b)
+    : props.columnHeaders.map((_, i) => i)
+
+  for (let rowIdx = 0; rowIdx < props.dataRows.length; rowIdx++) {
+    const row = props.dataRows[rowIdx]
+    if (!row) continue
+    for (const colIdx of colsToSearch) {
+      const val = row[colIdx] || ''
+      if (val.toLowerCase().includes(q)) {
+        matches.push({
+          rowOriginalIndex: rowIdx + 1,
+          rowDataIndex: rowIdx,
+          colIdx
+        })
       }
-      if (found) count++
-    } else {
-      // Recherche globale sur toutes les colonnes
-      const found = row.some(cell => (cell || '').toLowerCase().includes(q))
-      if (found) count++
     }
   }
+  return matches
+})
+
+// --- Computed : set rapide des cellules surlignées ---
+const matchCellSet = computed(() => {
+  const s = new Set<string>()
+  for (const m of searchMatches.value) {
+    s.add(`${m.rowOriginalIndex}-${m.colIdx}`)
+  }
+  return s
+})
+
+// --- Computed : match actif ---
+const activeMatch = computed<SearchMatch | null>(() => {
+  if (searchMatches.value.length === 0) return null
+  return searchMatches.value[currentMatchIndex.value] || null
+})
+
+// --- Computed : compteur de valeurs (lignes uniques) ---
+const counterResult = computed(() => {
+  if (!counterQuery.value.trim()) return { count: 0, percent: '0' }
+  const uniqueRows = new Set<number>()
+  for (const m of searchMatches.value) {
+    uniqueRows.add(m.rowOriginalIndex)
+  }
+  const count = uniqueRows.size
   const percent = props.dataRows.length > 0
     ? ((count / props.dataRows.length) * 100).toFixed(1)
     : '0'
   return { count, percent }
 })
+
+// --- Refs pour le scroll automatique ---
+const tableRowRefs = new Map<number, HTMLElement>()
+const tableCellRefs = new Map<string, HTMLElement>()
+const cardFieldRefs = new Map<number, HTMLElement>()
+
+function setTableRowRef(el: HTMLElement | null, originalIndex: number) {
+  if (el) tableRowRefs.set(originalIndex, el)
+  else tableRowRefs.delete(originalIndex)
+}
+
+function setCellRef(el: HTMLElement | null, originalIndex: number, colIdx: number) {
+  const key = `${originalIndex}-${colIdx}`
+  if (el) tableCellRefs.set(key, el)
+  else tableCellRefs.delete(key)
+}
+
+function setCardFieldRef(el: HTMLElement | null, colIdx: number) {
+  if (el) cardFieldRefs.set(colIdx, el)
+  else cardFieldRefs.delete(colIdx)
+}
+
+// --- Méthodes de vérification de match ---
+function isCellMatch(rowOriginalIndex: number, colIdx: number): boolean {
+  return matchCellSet.value.has(`${rowOriginalIndex}-${colIdx}`)
+}
+
+function cellHighlightClass(rowOriginalIndex: number, colIdx: number): Record<string, boolean> {
+  const key = `${rowOriginalIndex}-${colIdx}`
+  const isMatch = matchCellSet.value.has(key)
+  const isActive = activeMatch.value
+    ? activeMatch.value.rowOriginalIndex === rowOriginalIndex && activeMatch.value.colIdx === colIdx
+    : false
+  return {
+    'cell-highlight': isMatch && !isActive,
+    'cell-highlight-active': isActive,
+    'cell-space-warning': colIdx === 0 && hasLeadingTrailingSpaces(props.dataRows[rowOriginalIndex - 1]?.[colIdx] || '')
+  }
+}
+
+function isCardCellMatch(colIdx: number): boolean {
+  const entry = filteredRows.value[cardIndex.value]
+  if (!entry) return false
+  return matchCellSet.value.has(`${entry.originalIndex}-${colIdx}`)
+}
+
+function isCardCellActiveMatch(colIdx: number): boolean {
+  const entry = filteredRows.value[cardIndex.value]
+  if (!entry || !activeMatch.value) return false
+  return activeMatch.value.rowOriginalIndex === entry.originalIndex && activeMatch.value.colIdx === colIdx
+}
+
+// --- Méthodes de surlignage du texte ---
+function highlightText(str: string, maxLen: number): string {
+  if (!str) return ''
+  const truncated = str.length > maxLen ? str.slice(0, maxLen) + '…' : str
+  if (!counterQuery.value.trim()) return truncated
+  const q = counterQuery.value.trim()
+  const regex = new RegExp(`(${escapeRegex(q)})`, 'gi')
+  return truncated.replace(regex, '<mark class="search-mark">$1</mark>')
+}
+
+function highlightCardText(str: string): string {
+  if (!str || !counterQuery.value.trim()) return str || ''
+  const q = counterQuery.value.trim()
+  const regex = new RegExp(`(${escapeRegex(q)})`, 'gi')
+  return str.replace(regex, '<mark class="search-mark">$1</mark>')
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+// --- Navigation entre résultats ---
+function goToNextMatch() {
+  if (searchMatches.value.length === 0) return
+  currentMatchIndex.value = (currentMatchIndex.value + 1) % searchMatches.value.length
+  navigateToCurrentMatch()
+}
+
+function goToPrevMatch() {
+  if (searchMatches.value.length === 0) return
+  currentMatchIndex.value = (currentMatchIndex.value - 1 + searchMatches.value.length) % searchMatches.value.length
+  navigateToCurrentMatch()
+}
+
+function navigateToCurrentMatch() {
+  const match = activeMatch.value
+  if (!match) return
+
+  if (viewMode.value === 'table') {
+    // Calculer la page de la ligne cible dans filteredRows
+    const targetFilteredIndex = filteredRows.value.findIndex(e => e.originalIndex === match.rowOriginalIndex)
+    if (targetFilteredIndex < 0) return
+    const targetPage = Math.floor(targetFilteredIndex / ITEMS_PER_PAGE) + 1
+    currentPage.value = targetPage
+
+    // Scroll vers la cellule après le rendu
+    nextTick(() => {
+      const cellKey = `${match.rowOriginalIndex}-${match.colIdx}`
+      const cellEl = tableCellRefs.get(cellKey)
+      if (cellEl) {
+        cellEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+      } else {
+        const rowEl = tableRowRefs.get(match.rowOriginalIndex)
+        if (rowEl) rowEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    })
+  } else {
+    // Mode fiche : naviguer vers la bonne annonce
+    const targetFilteredIndex = filteredRows.value.findIndex(e => e.originalIndex === match.rowOriginalIndex)
+    if (targetFilteredIndex < 0) return
+    cardIndex.value = targetFilteredIndex
+
+    // Scroll vers le champ après le rendu
+    nextTick(() => {
+      const fieldEl = cardFieldRefs.get(match.colIdx)
+      if (fieldEl) {
+        fieldEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    })
+  }
+}
 
 // --- Méthodes ---
 // actualRowIndex n'est plus nécessaire car chaque entry porte son originalIndex
@@ -449,12 +627,24 @@ function onClickOutside(e: MouseEvent) {
 // Reset page quand les colonnes sélectionnées changent
 watch(selectedColumnIndices, () => {
   currentPage.value = 1
+  currentMatchIndex.value = 0
 }, { deep: true })
 
 // Reset page et card quand le filtre référence change
 watch(refQuery, () => {
   currentPage.value = 1
   cardIndex.value = 0
+  currentMatchIndex.value = 0
+})
+
+// Reset match index quand la requête change et naviguer vers le premier résultat
+watch(counterQuery, () => {
+  currentMatchIndex.value = 0
+  nextTick(() => {
+    if (searchMatches.value.length > 0) {
+      navigateToCurrentMatch()
+    }
+  })
 })
 
 // Reset card index si on change de vue ou si les données changent
@@ -717,8 +907,92 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 }
 
 .counter-results-info {
-  border-left-color: #8b5cf6;
-  background: linear-gradient(90deg, rgba(139, 92, 246, 0.06), var(--bg-surface-elevated));
+  border-left-color: #e8a820;
+  background: linear-gradient(90deg, rgba(232, 168, 32, 0.08), var(--bg-surface-elevated));
+}
+
+/* Search navigation bar */
+.search-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-nav-label {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.search-nav-detail {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.search-nav-buttons {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.search-nav-btn {
+  padding: 4px 10px !important;
+  font-size: 0.75rem !important;
+  min-width: 32px;
+  justify-content: center;
+}
+
+/* Cell highlight (match) */
+.cell-highlight {
+  background: rgba(255, 235, 59, 0.35) !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 193, 7, 0.5);
+}
+
+.cell-highlight-active {
+  background: rgba(255, 152, 0, 0.45) !important;
+  box-shadow: inset 0 0 0 2px rgba(255, 152, 0, 0.8);
+  animation: pulse-highlight 1s ease-in-out;
+}
+
+@keyframes pulse-highlight {
+  0% { box-shadow: inset 0 0 0 2px rgba(255, 152, 0, 0.8), 0 0 0 0 rgba(255, 152, 0, 0.4); }
+  50% { box-shadow: inset 0 0 0 2px rgba(255, 152, 0, 0.8), 0 0 8px 4px rgba(255, 152, 0, 0.2); }
+  100% { box-shadow: inset 0 0 0 2px rgba(255, 152, 0, 0.8), 0 0 0 0 rgba(255, 152, 0, 0); }
+}
+
+/* Search mark inside text */
+:deep(.search-mark) {
+  background: rgba(255, 235, 59, 0.6);
+  color: inherit;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 700;
+}
+
+/* Field highlight in card view */
+.field-highlight {
+  background: rgba(255, 235, 59, 0.15) !important;
+  border-left: 3px solid #ffc107;
+}
+
+.field-highlight-active {
+  background: rgba(255, 152, 0, 0.2) !important;
+  border-left: 3px solid #ff9800;
+  animation: pulse-field 1s ease-in-out;
+}
+
+@keyframes pulse-field {
+  0% { box-shadow: inset 0 0 0 0 rgba(255, 152, 0, 0.3); }
+  50% { box-shadow: inset 0 0 12px 0 rgba(255, 152, 0, 0.15); }
+  100% { box-shadow: inset 0 0 0 0 rgba(255, 152, 0, 0); }
+}
+
+.field-highlight .field-rank,
+.field-highlight-active .field-rank {
+  color: #e8a820;
+  background: rgba(255, 193, 7, 0.1);
 }
 
 /* View toggle */

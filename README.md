@@ -27,7 +27,7 @@ Outil de validation de fichiers CSV au format **Poliris** pour les annonces immo
 - **Sélecteur multi-colonnes** : menu déroulant avec checkboxes pour afficher simultanément plusieurs colonnes (filtre l'affichage + cible le compteur)
 - **Filtre par référence agence** pour cibler une annonce précise
 - **Vue fiche** annonce par annonce avec navigation et filtrage intégré
-- **Compteur de valeurs** : recherche dans les données avec comptage (global ou par colonne ciblée), pourcentage affiché
+- **Recherche & Surlignage interactive** : recherche de valeurs façon "Excel" (Ctrl+F) avec surlignage jaune des matches, navigation pas à pas (Résultat N/M), auto-scroll et auto-pagination vers le match actif. Fonctionne en mode Tableau et Fiche.
 - **Export Excel** des données validées et du rapport d'erreurs
 - **Thème aux couleurs Figaro Immo Pro** (orange, blanc, noir, Montserrat, boutons pill)
 

@@ -197,8 +197,14 @@
         </table>
       </div>
 
-      <!-- Tooltip Dynamique -->
-      <div v-if="tooltip.show" class="dynamic-tooltip" :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }">
+      <!-- Tooltip Dynamique Interactif -->
+      <div
+        v-if="tooltip.show"
+        class="dynamic-tooltip"
+        :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }"
+        @mouseenter="isMouseOverTooltip = true"
+        @mouseleave="isMouseOverTooltip = false; hideTooltip()"
+      >
         <div class="tooltip-content" v-html="tooltipContent"></div>
       </div>
 
@@ -299,6 +305,7 @@ const tooltip = ref({
   y: 0
 })
 const currentHoveredText = ref('')
+const isMouseOverTooltip = ref(false)
 const tooltipContent = computed(() => highlightCardText(currentHoveredText.value))
 
 // --- Helper : nettoyer le préfixe "N - " des en-têtes CSV ---
@@ -686,7 +693,12 @@ function showTooltip(event: MouseEvent, text: string) {
 }
 
 function hideTooltip() {
-  tooltip.value.show = false
+  // Petit délai pour laisser le temps à la souris d'entrer dans l'info-bulle
+  setTimeout(() => {
+    if (!isMouseOverTooltip.value) {
+      tooltip.value.show = false
+    }
+  }, 150)
 }
 
 function onClickOutside(e: MouseEvent) {
@@ -1328,9 +1340,9 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   width: auto;
   min-width: 450px;
   max-width: 1200px; /* Élargissement maximum pour aplatir le texte */
-  max-height: 95vh;   /* Presque toute la hauteur de l'écran si nécessaire */
-  overflow: visible;  /* Plus de barre de scroll interne */
-  pointer-events: none;
+  max-height: 85vh;   /* Hauteur généreuse pour le scroll */
+  overflow-y: auto;   /* Réactivation du scroll interne */
+  pointer-events: auto; /* PERMET d'interagir avec la bulle */
   animation: tooltip-fade-in 0.1s ease-out;
 }
 

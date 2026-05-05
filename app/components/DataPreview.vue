@@ -177,9 +177,11 @@
               <td style="position: sticky; left: 0; z-index: 1; background: var(--bg-surface); font-weight: 600; color: var(--text-muted);">
                 {{ entry.originalIndex }}
               </td>
-              <td v-for="colIdx in displayColumnIndices" :key="colIdx" :title="entry.row[colIdx]"
+              <td v-for="colIdx in displayColumnIndices" :key="colIdx"
                   :class="cellHighlightClass(entry.originalIndex, colIdx)"
-                  :ref="el => setCellRef(el as HTMLElement | null, entry.originalIndex, colIdx)">
+                  :ref="el => setCellRef(el as HTMLElement | null, entry.originalIndex, colIdx)"
+                  @mouseenter="colIdx === 19 || colIdx === 20 ? showTooltip($event, entry.row[colIdx]) : null"
+                  @mouseleave="hideTooltip">
                 <template v-if="colIdx === 0 && hasLeadingTrailingSpaces(entry.row[colIdx])">
                   <span class="space-indicator">⚠</span> {{ formatSpaces(entry.row[colIdx], 50) }}
                 </template>
@@ -193,6 +195,11 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Tooltip Dynamique -->
+      <div v-if="tooltip.show" class="dynamic-tooltip" :style="{ top: tooltip.y + 'px', left: tooltip.x + 'px' }">
+        <div class="tooltip-content" v-html="tooltip.content"></div>
       </div>
 
       <!-- Pagination -->
@@ -284,6 +291,14 @@ const dropdownOpen = ref(false)
 const columnSearchQuery = ref('')
 const comboboxRef = ref<HTMLElement | null>(null)
 const comboboxInputRef = ref<HTMLInputElement | null>(null)
+
+// --- Tooltip State ---
+const tooltip = ref({
+  show: false,
+  content: '',
+  x: 0,
+  y: 0
+})
 
 // --- Helper : nettoyer le préfixe "N - " des en-têtes CSV ---
 function cleanHeader(header: string | undefined): string {
@@ -616,6 +631,39 @@ function clearSelection() {
 function closeDropdown() {
   dropdownOpen.value = false
   columnSearchQuery.value = ''
+}
+
+// --- Tooltip Handlers ---
+function showTooltip(event: MouseEvent, text: string) {
+  if (!text) return
+  
+  // Surlignage du texte intégral pour l'info-bulle
+  const content = highlightCardText(text)
+  
+  tooltip.value = {
+    show: true,
+    content: content,
+    x: event.clientX + 10,
+    y: event.clientY + 10
+  }
+  
+  // Ajustement si l'info-bulle dépasse à droite
+  nextTick(() => {
+    const el = document.querySelector('.dynamic-tooltip') as HTMLElement
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      if (rect.right > window.innerWidth) {
+        tooltip.value.x = window.innerWidth - rect.width - 20
+      }
+      if (rect.bottom > window.innerHeight) {
+        tooltip.value.y = event.clientY - rect.height - 10
+      }
+    }
+  })
+}
+
+function hideTooltip() {
+  tooltip.value.show = false
 }
 
 function onClickOutside(e: MouseEvent) {
@@ -1238,5 +1286,40 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   .annonce-nav {
     flex-wrap: wrap;
   }
+}
+
+/* Tooltip Dynamique */
+.dynamic-tooltip {
+  position: fixed;
+  z-index: 1000;
+  background: var(--bg-surface);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: 12px 16px;
+  max-width: 450px;
+  pointer-events: none;
+  animation: tooltip-fade-in 0.2s ease;
+}
+
+@keyframes tooltip-fade-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.tooltip-content {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.tooltip-content :deep(.search-mark) {
+  background: rgba(242, 101, 34, 0.25);
+  color: var(--color-primary-dark);
+  font-weight: 700;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 </style>

@@ -640,15 +640,15 @@ function showTooltip(event: MouseEvent, text: string) {
   
   currentHoveredText.value = text
   
-  // Position initiale
+  // Position initiale (décalée du curseur pour éviter les conflits)
   tooltip.value = {
     ...tooltip.value,
     show: true,
-    x: event.clientX + 15,
-    y: event.clientY + 15
+    x: event.clientX + 20,
+    y: event.clientY + 20
   }
   
-  // Ajustement si l'info-bulle dépasse
+  // Ajustement fin après rendu
   nextTick(() => {
     const el = document.querySelector('.dynamic-tooltip') as HTMLElement
     if (el) {
@@ -656,18 +656,29 @@ function showTooltip(event: MouseEvent, text: string) {
       const winW = window.innerWidth
       const winH = window.innerHeight
       
-      let newX = event.clientX + 15
-      let newY = event.clientY + 15
+      let newX = event.clientX + 20
+      let newY = event.clientY + 20
       
-      if (newX + rect.width > winW) {
+      // Ajustement horizontal (ne pas sortir à droite)
+      if (newX + rect.width > winW - 20) {
         newX = winW - rect.width - 20
       }
       
-      if (newY + rect.height > winH) {
-        newY = event.clientY - rect.height - 15
+      // Ajustement vertical : si ça dépasse en bas, on tente de l'afficher AU-DESSUS du curseur
+      if (newY + rect.height > winH - 20) {
+        newY = event.clientY - rect.height - 20
       }
       
-      // Sécurité pour ne pas sortir en haut ou à gauche
+      // Sécurité ultime : si après inversion ça dépasse en haut, on cale à 10px 
+      // mais on s'assure que newX est décalé pour ne pas être sous le curseur si possible
+      if (newY < 10) {
+        newY = 10
+        // Si la bulle est calée en haut et que le curseur est dans la zone, on décale à gauche
+        if (event.clientY < rect.height + 20) {
+           newX = event.clientX - rect.width - 20
+        }
+      }
+
       tooltip.value.x = Math.max(10, newX)
       tooltip.value.y = Math.max(10, newY)
     }
@@ -1310,17 +1321,17 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   z-index: 9999;
   background: #ffffff;
   border: 1px solid #f26522;
-  border-left: 6px solid #f26522;
-  border-radius: 8px;
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4);
-  padding: 18px 24px;
+  border-left: 8px solid #f26522;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  padding: 20px 30px;
   width: auto;
-  min-width: 350px;
-  max-width: 800px;
-  max-height: 75vh;
+  min-width: 400px;
+  max-width: 1100px; /* Plus large pour un aspect horizontal */
+  max-height: 65vh;   /* Un peu moins haut pour éviter de déborder */
   overflow-y: auto;
   pointer-events: none;
-  animation: tooltip-fade-in 0.15s ease-out;
+  animation: tooltip-fade-in 0.1s ease-out;
 }
 
 [data-theme="dark"] .dynamic-tooltip {
@@ -1331,9 +1342,9 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 
 .tooltip-content {
   font-family: 'Montserrat', sans-serif;
-  font-size: 0.95rem;
+  font-size: 0.98rem; /* Légèrement plus grand pour la lisibilité */
   color: #1a1a1a;
-  line-height: 1.6;
+  line-height: 1.7;
   white-space: break-spaces;
   word-break: break-word;
   overflow-wrap: break-word;

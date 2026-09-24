@@ -10,7 +10,7 @@ Outil de validation de fichiers CSV au format **Poliris** pour les annonces immo
   - Champs obligatoires (11 champs)
   - Types de données : Entier, Décimal, Date (JJ/MM/AAAA), Texte, Booléen
   - Format : Code Postal (5 chiffres), Email, Téléphone français, URL
-  - Détection de **pipes** `|` (risque de décalage de données)
+  - Détection de **pipes** `|` (risque de décalage de données), sauf dans les champs Libellé et Descriptif
   - Détection de **HTML non autorisé** (sauf `<br>`)
   - Valeurs permises (type d'annonce, type de bien)
   - Plages numériques (prix > 0, surface > 0…)
@@ -114,7 +114,7 @@ Les règles sont configurées dans `utils/poliris-schema.ts` :
 - **Type de bien** (rang 4) : `parking/box`, `local`, `maison/villa`, `bureaux`, `cave` ajoutés aux valeurs autorisées
 
 **Règles globales (tous les champs) :**
-- Détection de pipes `|`
+- Détection de pipes `|` (non appliquée aux champs Libellé et Descriptif, toutes langues)
 - Détection de HTML non autorisé (seul `<br>` est accepté)
 - Vérification des guillemets CSV
 

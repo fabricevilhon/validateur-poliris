@@ -67,7 +67,11 @@ function checkSansEspace(value: string, rule: FieldRule): string | null {
     return null
 }
 
-function checkPipes(value: string, _rule: FieldRule): string | null {
+// Les pipes sont tolérés dans les champs Libellé et Descriptif (y compris Langue 1/2/3)
+const PIPE_ALLOWED_FIELDS = /^(Libellé|Descriptif)( |$)/
+
+function checkPipes(value: string, rule: FieldRule): string | null {
+    if (PIPE_ALLOWED_FIELDS.test(rule.nom)) return null
     if (value && value.includes('|')) {
         return 'Caractère pipe (|) détecté — risque de décalage de données.'
     }

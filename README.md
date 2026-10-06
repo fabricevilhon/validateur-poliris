@@ -77,6 +77,8 @@ npx vercel
 │   └── export.ts                # Export Excel (données + rapport)
 ├── assets/css/
 │   └── main.css                 # Design system (thème, composants)
+├── cli/
+│   └── valider.ts               # Ligne de commande (retour JSON, même moteur)
 ├── nuxt.config.ts               # Configuration Nuxt
 ├── vercel.json                  # Configuration Vercel
 └── En-tête_Poliris.csv          # Référence des en-têtes (legacy)
@@ -117,6 +119,27 @@ Les règles sont configurées dans `utils/poliris-schema.ts` :
 - Détection de pipes `|` (non appliquée aux champs Libellé et Descriptif, toutes langues)
 - Détection de HTML non autorisé (seul `<br>` est accepté)
 - Vérification des guillemets CSV
+
+## 🖥️ Ligne de commande (retour JSON)
+
+Le même moteur de validation, sans interface, pour valider un fichier depuis un script, une CI ou un serveur (le fichier ne quitte pas la machine) :
+
+```bash
+npm run build:cli                                   # → .output/cli/valider.mjs (un seul fichier, Node ≥ 18, sans dépendance)
+node .output/cli/valider.mjs Annonces.csv           # synthèse JSON
+node .output/cli/valider.mjs Annonces.csv --detail  # + chaque erreur (ligne, référence, rang, champ, sévérité, catégorie, message, valeur)
+```
+
+```json
+{
+  "fichier": "Annonces.csv", "encodage": "utf-8", "lignes": 266, "colonnesDetectees": 334,
+  "identifiantsAgence": ["38838"], "structure": null, "erreurs": 6,
+  "parSeverite": { "critique": 3, "warning": 1, "info": 2 },
+  "parCategorie": { "Champ obligatoire": 1, "Doublon": 2, "Pipe détecté": 1, "Code postal": 1, "Email": 1 }
+}
+```
+
+Code de sortie : `0` aucune erreur critique · `1` au moins une critique ou structure invalide · `2` usage incorrect ou fichier illisible.
 
 ## 🧪 Test en masse (compilation d'archives)
 
